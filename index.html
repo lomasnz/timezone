@@ -10,6 +10,10 @@
     background: #f5f7fa;
   }
 
+  .controls {
+    margin-bottom: 20px;
+  }
+
   .row {
     display: grid;
     grid-template-columns: 200px repeat(24, 1fr);
@@ -58,6 +62,11 @@
 </head>
 <body>
 
+<div class="controls">
+  <label>Select date: </label>
+  <input type="date" id="datePicker">
+</div>
+
 <div id="grid"></div>
 
 <script>
@@ -90,9 +99,18 @@ function render() {
   const container = document.getElementById("grid");
   container.innerHTML = "";
 
+  const selectedDate = document.getElementById("datePicker").value;
   const now = new Date();
 
-  // Header row
+  let baseDate;
+
+  if (selectedDate) {
+    baseDate = new Date(selectedDate + "T00:00:00");
+  } else {
+    baseDate = new Date();
+  }
+
+  // Header
   const header = document.createElement("div");
   header.className = "row";
 
@@ -134,12 +152,13 @@ function render() {
       const cell = document.createElement("div");
       cell.className = "cell";
 
-      const d = new Date(now.getTime() + i * 3600000);
+      const d = new Date(baseDate.getTime() + i * 3600000);
       const hour = getHour(d, zone.tz);
 
       cell.textContent = formatHour(d, zone.tz);
 
-      if (i === 0) {
+      // Highlight current hour ONLY if viewing today
+      if (!selectedDate && i === 0) {
         cell.classList.add("now");
       } else {
         cell.classList.add("past");
@@ -156,10 +175,16 @@ function render() {
   });
 }
 
-// initial render
+// Set default date to today
+document.getElementById("datePicker").valueAsDate = new Date();
+
+// Re-render on change
+document.getElementById("datePicker").addEventListener("change", render);
+
+// Initial render
 render();
 
-// update every minute
+// Update every minute (only matters for "today")
 setInterval(render, 60000);
 </script>
 
