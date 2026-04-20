@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Timezone Grid</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f5f7fa;
+  }
+
+  .row {
+    display: grid;
+    grid-template-columns: 200px repeat(24, 1fr);
+    margin-bottom: 10px;
+    align-items: center;
+  }
+
+  .label {
+    font-weight: bold;
+    padding-right: 10px;
+  }
+
+  .time {
+    font-size: 12px;
+    color: #666;
+  }
+
+  .cell {
+    border: 1px solid #ddd;
+    padding: 6px 0;
+    text-align: center;
+    font-size: 12px;
+    background: #fff;
+  }
+
+  .past {
+    background: #e9eef5;
+  }
+
+  .now {
+    background: #4a90e2;
+    color: white;
+    font-weight: bold;
+  }
+
+  .night {
+    background: #2c3e50;
+    color: white;
+  }
+
+  .header {
+    font-weight: bold;
+    background: #dfe6f1;
+  }
+</style>
+</head>
+<body>
+
+<div id="grid"></div>
+
+<script>
+const zones = [
+  { name: "Wellington", tz: "Pacific/Auckland" },
+  { name: "Melbourne", tz: "Australia/Melbourne" },
+  { name: "Sydney", tz: "Australia/Sydney" },
+  { name: "Bangkok", tz: "Asia/Bangkok" },
+  { name: "Manchester", tz: "Europe/London" },
+  { name: "Houston", tz: "America/Chicago" }
+];
+
+function formatHour(date, tz) {
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    hour12: true,
+    timeZone: tz
+  }).format(date);
+}
+
+function getHour(date, tz) {
+  return parseInt(new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    hour12: false,
+    timeZone: tz
+  }).format(date));
+}
+
+function render() {
+  const container = document.getElementById("grid");
+  container.innerHTML = "";
+
+  const now = new Date();
+
+  // Header row
+  const header = document.createElement("div");
+  header.className = "row";
+
+  const blank = document.createElement("div");
+  blank.className = "label";
+  header.appendChild(blank);
+
+  for (let i = 0; i < 24; i++) {
+    const cell = document.createElement("div");
+    cell.className = "cell header";
+    cell.textContent = i;
+    header.appendChild(cell);
+  }
+
+  container.appendChild(header);
+
+  zones.forEach(zone => {
+    const row = document.createElement("div");
+    row.className = "row";
+
+    const label = document.createElement("div");
+    label.className = "label";
+
+    const localTime = new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      minute: "numeric",
+      hour12: true,
+      timeZone: zone.tz
+    }).format(now);
+
+    label.innerHTML = `
+      ${zone.name}<br>
+      <span class="time">${localTime}</span>
+    `;
+
+    row.appendChild(label);
+
+    for (let i = 0; i < 24; i++) {
+      const cell = document.createElement("div");
+      cell.className = "cell";
+
+      const d = new Date(now.getTime() + i * 3600000);
+      const hour = getHour(d, zone.tz);
+
+      cell.textContent = formatHour(d, zone.tz);
+
+      if (i === 0) {
+        cell.classList.add("now");
+      } else {
+        cell.classList.add("past");
+      }
+
+      if (hour < 6 || hour > 20) {
+        cell.classList.add("night");
+      }
+
+      row.appendChild(cell);
+    }
+
+    container.appendChild(row);
+  });
+}
+
+// initial render
+render();
+
+// update every minute
+setInterval(render, 60000);
+</script>
+
+</body>
+</html>
