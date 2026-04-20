@@ -75,12 +75,13 @@ body {
 }
 
 .good {
-  background: #4caf50;
-  color: white;
+  background: #2e7d32; /* darker green */
+  color: #ffffff;
 }
 
 .partial {
-  background: #a5d6a7;
+  background: #c8e6c9; /* very light green */
+  color: #1b5e20; /* dark text */
 }
 
 .tooltip {
@@ -95,12 +96,14 @@ body {
 }
 
 .selected {
-  outline: 2px solid var(--primary);
+  background: #f57c00 !important;
+  color: white !important;
 }
 
 /* NEW: vertical hover band */
 .hoverColumn {
-  background: rgba(0,0,0,0.08) !important;
+  background: rgba(245, 124, 0, 0.18) !important;
+  box-shadow: inset 0 0 0 1px rgba(245, 124, 0, 0.4);
 }
 </style>
 </head>
@@ -274,15 +277,14 @@ function render() {
 function updateClock() {
   const now = new Date();
 
-  const time = new Intl.DateTimeFormat("en-NZ", {
+  const time = new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "numeric",
     second: "numeric",
-    hour12: true,
-    timeZone: "Pacific/Auckland"
+    hour12: true
   }).format(now);
 
-  document.getElementById("clock").innerText = "Now: " + time;
+  document.getElementById("clock").innerText = "Local: " + time;
 }
 
 setInterval(updateClock, 1000);
