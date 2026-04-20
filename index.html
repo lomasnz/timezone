@@ -14,23 +14,12 @@ body {
 }
 
 .header {
-  padding: 16px 24px;
+  padding: 16px;
   background: white;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
   display: flex;
+  gap: 12px;
   align-items: center;
-  gap: 16px;
-}
-
-.header h2 {
-  margin: 0;
-  font-weight: 600;
-}
-
-input[type="date"] {
-  padding: 8px 12px;
-  border-radius: 8px;
-  border: 1px solid #ddd;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
 }
 
 .container {
@@ -38,49 +27,36 @@ input[type="date"] {
   cursor: grab;
 }
 
-.timeline {
-  min-width: 1800px;
-}
-
-.row {
-  display: flex;
-  align-items: center;
-  border-bottom: 1px solid #eee;
-}
-
-.label {
-  width: 200px;
-  padding: 12px;
-  background: white;
-  position: sticky;
-  left: 0;
-  border-right: 1px solid #eee;
-  z-index: 2;
-}
-
-.label strong {
-  display: block;
-}
-
-.label span {
-  font-size: 12px;
-  color: #666;
-}
-
-.hours {
-  display: flex;
-  position: relative;
+.grid {
+  display: grid;
+  grid-template-columns: 200px repeat(48, 80px);
 }
 
 .cell {
-  width: 80px;
-  padding: 10px 0;
-  text-align: center;
-  font-size: 12px;
   border-right: 1px solid #eee;
+  border-bottom: 1px solid #eee;
+  text-align: center;
+  padding: 8px 0;
+  font-size: 12px;
 }
 
-.headerRow {
+.label {
+  position: sticky;
+  left: 0;
+  background: white;
+  text-align: left;
+  padding: 10px;
+  font-weight: 600;
+  border-right: 1px solid #ddd;
+  z-index: 2;
+}
+
+.time {
+  font-size: 11px;
+  color: #666;
+}
+
+.headerCell {
   background: #fafafa;
   font-weight: 600;
 }
@@ -90,12 +66,13 @@ input[type="date"] {
   color: white;
 }
 
-.nowLine {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: red;
+.work {
+  background: #e3f2fd;
+}
+
+.overlap {
+  background: #81c784 !important;
+  color: black;
 }
 </style>
 </head>
@@ -103,12 +80,12 @@ input[type="date"] {
 <body>
 
 <div class="header">
-  <h2>Timezone Planner</h2>
+  <strong>Timezone Planner</strong>
   <input type="date" id="datePicker">
 </div>
 
-<div class="container" id="scrollContainer">
-  <div class="timeline" id="timeline"></div>
+<div class="container" id="scroll">
+  <div id="grid" class="grid"></div>
 </div>
 
 <script>
@@ -121,138 +98,126 @@ const zones = [
   { name: "Houston", tz: "America/Chicago" }
 ];
 
-function formatHour(date, tz) {
-  return new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    hour12: true,
-    timeZone: tz
-  }).format(date);
-}
-
-function getHour(date, tz) {
-  return parseInt(new Intl.DateTimeFormat("en-US", {
+function getParts(date, tz) {
+  const parts = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     hour12: false,
+    weekday: "short",
     timeZone: tz
-  }).format(date));
+  }).formatToParts(date);
+
+  return {
+    hour: parseInt(parts.find(p => p.type === "hour").value),
+    day: parts.find(p => p.type === "weekday").value
+  };
 }
 
 function render() {
-  const timeline = document.getElementById("timeline");
-  timeline.innerHTML = "";
+  const grid = document.getElementById("grid");
+  grid.innerHTML = "";
 
-  const selectedDate = document.getElementById("datePicker").value;
-  const now = new Date();
+  const selected = document.getElementById("datePicker").value;
+  const base = selected ? new Date(selected + "T00:00:00") : new Date();
 
-  let baseDate = selectedDate
-    ? new Date(selectedDate + "T00:00:00")
-    : new Date();
-
-  // Header row
-  const headerRow = document.createElement("div");
-  headerRow.className = "row headerRow";
-
-  const label = document.createElement("div");
-  label.className = "label";
-  headerRow.appendChild(label);
-
-  const hours = document.createElement("div");
-  hours.className = "hours";
+  // HEADER ROW
+  grid.appendChild(document.createElement("div"));
 
   for (let i = 0; i < 48; i++) {
-    const d = new Date(baseDate.getTime() + i * 3600000);
-
+    const d = new Date(base.getTime() + i * 3600000);
     const cell = document.createElement("div");
-    cell.className = "cell";
-    cell.textContent = d.getHours();
+    cell.className = "cell headerCell";
 
-    hours.appendChild(cell);
+    const day = new Intl.DateTimeFormat("en-US", {
+      weekday: "short"
+    }).format(d);
+
+    cell.innerHTML = `${day}<br>${d.getHours()}`;
+    grid.appendChild(cell);
   }
 
-  headerRow.appendChild(hours);
-  timeline.appendChild(headerRow);
+  // Pre-calc overlap
+  let overlapMap = Array(48).fill(0);
 
   zones.forEach(zone => {
-    const row = document.createElement("div");
-    row.className = "row";
+    for (let i = 0; i < 48; i++) {
+      const d = new Date(base.getTime() + i * 3600000);
+      const { hour } = getParts(d, zone.tz);
+
+      if (hour >= 9 && hour <= 17) {
+        overlapMap[i]++;
+      }
+    }
+  });
+
+  // ROWS
+  zones.forEach(zone => {
+    const now = new Date();
 
     const label = document.createElement("div");
     label.className = "label";
 
-    const localTime = new Intl.DateTimeFormat("en-US", {
+    const local = new Intl.DateTimeFormat("en-US", {
       hour: "numeric",
       minute: "numeric",
       hour12: true,
-      timeZone: zone.tz
+      timeZone: zone.tz,
+      timeZoneName: "short"
     }).format(now);
 
-    label.innerHTML = `<strong>${zone.name}</strong><span>${localTime}</span>`;
-    row.appendChild(label);
-
-    const hours = document.createElement("div");
-    hours.className = "hours";
+    label.innerHTML = `${zone.name}<div class="time">${local}</div>`;
+    grid.appendChild(label);
 
     for (let i = 0; i < 48; i++) {
-      const d = new Date(baseDate.getTime() + i * 3600000);
-      const hour = getHour(d, zone.tz);
+      const d = new Date(base.getTime() + i * 3600000);
+      const { hour } = getParts(d, zone.tz);
 
       const cell = document.createElement("div");
       cell.className = "cell";
-      cell.textContent = formatHour(d, zone.tz);
+
+      const labelTime = new Intl.DateTimeFormat("en-US", {
+        hour: "numeric",
+        hour12: true,
+        timeZone: zone.tz
+      }).format(d);
+
+      cell.textContent = labelTime;
 
       if (hour < 6 || hour > 20) {
         cell.classList.add("night");
       }
 
-      hours.appendChild(cell);
+      if (hour >= 9 && hour <= 17) {
+        cell.classList.add("work");
+      }
+
+      if (overlapMap[i] >= 3) {
+        cell.classList.add("overlap");
+      }
+
+      grid.appendChild(cell);
     }
-
-    // Current time line (only today)
-    if (!selectedDate) {
-      const nowLine = document.createElement("div");
-      nowLine.className = "nowLine";
-
-      const minutes = now.getMinutes();
-      const offset = (minutes / 60) * 80;
-
-      nowLine.style.left = offset + "px";
-      hours.appendChild(nowLine);
-    }
-
-    row.appendChild(hours);
-    timeline.appendChild(row);
   });
 }
 
-// Drag to scroll
-const container = document.getElementById("scrollContainer");
-let isDown = false;
-let startX;
-let scrollLeft;
+// Drag scroll
+const scroller = document.getElementById("scroll");
+let isDown = false, startX, scrollLeft;
 
-container.addEventListener("mousedown", (e) => {
+scroller.addEventListener("mousedown", e => {
   isDown = true;
-  startX = e.pageX - container.offsetLeft;
-  scrollLeft = container.scrollLeft;
-  container.style.cursor = "grabbing";
+  startX = e.pageX - scroller.offsetLeft;
+  scrollLeft = scroller.scrollLeft;
 });
 
-container.addEventListener("mouseleave", () => {
-  isDown = false;
-  container.style.cursor = "grab";
-});
+scroller.addEventListener("mouseup", () => isDown = false);
+scroller.addEventListener("mouseleave", () => isDown = false);
 
-container.addEventListener("mouseup", () => {
-  isDown = false;
-  container.style.cursor = "grab";
-});
-
-container.addEventListener("mousemove", (e) => {
+scroller.addEventListener("mousemove", e => {
   if (!isDown) return;
   e.preventDefault();
-  const x = e.pageX - container.offsetLeft;
+  const x = e.pageX - scroller.offsetLeft;
   const walk = (x - startX) * 1.5;
-  container.scrollLeft = scrollLeft - walk;
+  scroller.scrollLeft = scrollLeft - walk;
 });
 
 // Init
@@ -260,7 +225,6 @@ document.getElementById("datePicker").valueAsDate = new Date();
 document.getElementById("datePicker").addEventListener("change", render);
 
 render();
-setInterval(render, 60000);
 </script>
 
 </body>
