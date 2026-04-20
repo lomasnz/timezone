@@ -8,7 +8,7 @@
 
 <style>
 :root {
-  --primary: #f57c00; /* Orange */
+  --primary: #f57c00;
   --bg: #f4f6f8;
   --card: #ffffff;
 }
@@ -26,6 +26,11 @@ body {
   background: var(--card);
   box-shadow: 0 2px 6px rgba(0,0,0,0.08);
   align-items: center;
+}
+
+#clock {
+  margin-left: auto;
+  font-weight: 600;
 }
 
 .container {
@@ -67,21 +72,8 @@ body {
   background: #37474f; 
   color: #e0e0e0;
 }
-.work { background: #e3f2fd; }
-.overlap { 
-  background: #4caf50 !important;
-  color: white;
-}
 
-.nowLine {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #ff3d00;
-  z-index: 10;
-  pointer-events: none;
-}
+.work { background: #e3f2fd; }
 
 .tooltip {
   position: fixed;
@@ -97,15 +89,6 @@ body {
 .selected {
   outline: 2px solid var(--primary);
 }
-.nowLine {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: #ff3d00;
-  z-index: 10;
-  pointer-events: none;
-}Ï
 </style>
 </head>
 
@@ -120,6 +103,8 @@ body {
   <input type="number" id="threshold" value="3" min="1" max="6" style="width:60px">
 
   <span id="selection"></span>
+
+  <div id="clock"></div>
 </div>
 
 <div class="container" id="scroll">
@@ -136,23 +121,17 @@ const zones = [
   { name: "Bangkok", tz: "Asia/Bangkok" },
   { name: "Manchester", tz: "Europe/London" },
   { name: "Houston", tz: "America/Chicago" },
-  { name: "Denver", tz: "America/Denver" } // 👈 add this
+  { name: "Denver", tz: "America/Denver" }
 ];
 
 let selectedCell = null;
 
-function getParts(date, tz) {
-  const parts = new Intl.DateTimeFormat("en-US", {
+function getHour(date, tz) {
+  return parseInt(new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     hour12: false,
-    weekday: "short",
     timeZone: tz
-  }).formatToParts(date);
-
-  return {
-    hour: parseInt(parts.find(p => p.type === "hour").value),
-    day: parts.find(p => p.type === "weekday").value
-  };
+  }).format(date));
 }
 
 function formatFull(date, tz) {
@@ -168,7 +147,6 @@ function render() {
   const grid = document.getElementById("grid");
   grid.innerHTML = "";
 
-  const threshold = parseInt(document.getElementById("threshold").value);
   const selectedDate = document.getElementById("datePicker").value;
   const base = selectedDate ? new Date(selectedDate + "T00:00:00") : new Date();
 
@@ -187,16 +165,20 @@ function render() {
     grid.appendChild(cell);
   }
 
-  // overlap calc
+  // HEATMAP SCORE
   let overlap = Array(48).fill(0);
 
   zones.forEach(z => {
     for (let i = 0; i < 48; i++) {
       const d = new Date(base.getTime() + i * 3600000);
-      const { hour } = getParts(d, z.tz);
-      if (hour >= 9 && hour <= 17) overlap[i]++;
+      const hour = getHour(d, z.tz);
+
+      if (hour >= 9 && hour <= 17) overlap[i] += 2;
+      else if (hour >= 7 && hour <= 19) overlap[i] += 1;
     }
   });
+
+  const maxScore = zones.length * 2;
 
   zones.forEach(zone => {
     const label = document.createElement("div");
@@ -215,7 +197,7 @@ function render() {
 
     for (let i = 0; i < 48; i++) {
       const d = new Date(base.getTime() + i * 3600000);
-      const { hour } = getParts(d, zone.tz);
+      const hour = getHour(d, zone.tz);
 
       const cell = document.createElement("div");
       cell.className = "cell";
@@ -226,11 +208,18 @@ function render() {
         timeZone: zone.tz
       }).format(d);
 
-      if (hour < 6 || hour > 20) cell.classList.add("night");
-      if (hour >= 9 && hour <= 17) cell.classList.add("work");
-      if (overlap[i] >= threshold) cell.classList.add("overlap");
+      // Heatmap color
+      const intensity = overlap[i] / maxScore;
+      if (intensity > 0) {
+        const green = Math.floor(200 * intensity + 55);
+        const red = Math.floor(255 - green * 0.6);
+        cell.style.background = `rgb(${red}, ${green}, 120)`;
+        cell.style.color = intensity > 0.5 ? "white" : "black";
+      }
 
-      // hover tooltip
+      if (hour < 6 || hour > 20) cell.classList.add("night");
+
+      // tooltip
       cell.addEventListener("mousemove", e => {
         const tip = document.getElementById("tooltip");
         tip.style.display = "block";
@@ -243,7 +232,7 @@ function render() {
         document.getElementById("tooltip").style.display = "none";
       });
 
-      // click select
+      // select
       cell.addEventListener("click", () => {
         if (selectedCell) selectedCell.classList.remove("selected");
         cell.classList.add("selected");
@@ -256,28 +245,27 @@ function render() {
       grid.appendChild(cell);
     }
   });
-
-  // NOW LINE (fixed)
-  const existingLine = document.querySelector(".nowLine");
-  if (existingLine) existingLine.remove();
-  
-  if (!selectedDate) {
-    const now = new Date();
-  
-    const hoursFromStart = now.getHours() + now.getMinutes() / 60;
-    const offset = hoursFromStart * 80;
-  
-    const line = document.createElement("div");
-    line.className = "nowLine";
-  
-    // 220 = width of label column
-    line.style.left = (220 + offset) + "px";
-  
-    document.getElementById("scroll").appendChild(line);
-  }Ï
 }
 
-// drag scroll
+// CLOCK
+function updateClock() {
+  const now = new Date();
+
+  const time = new Intl.DateTimeFormat("en-NZ", {
+    hour: "numeric",
+    minute: "numeric",
+    second: "numeric",
+    hour12: true,
+    timeZone: "Pacific/Auckland"
+  }).format(now);
+
+  document.getElementById("clock").innerText = "Now: " + time;
+}
+
+setInterval(updateClock, 1000);
+updateClock();
+
+// DRAG SCROLL
 const scroller = document.getElementById("scroll");
 let isDown = false, startX, scrollLeft;
 
@@ -300,7 +288,6 @@ scroller.addEventListener("mousemove", e => {
 
 document.getElementById("datePicker").valueAsDate = new Date();
 document.getElementById("datePicker").addEventListener("change", render);
-document.getElementById("threshold").addEventListener("change", render);
 
 render();
 </script>
