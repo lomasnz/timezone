@@ -37,6 +37,7 @@ body {
   overflow: auto;
   cursor: grab;
   height: calc(100vh - 70px);
+  position: relative;
 }
 
 .grid {
@@ -68,12 +69,19 @@ body {
   font-size: 12px;
 }
 
-.night { 
-  background: #37474f; 
+.night {
+  background: #37474f;
   color: #e0e0e0;
 }
 
-.work { background: #e3f2fd; }
+.good {
+  background: #4caf50;
+  color: white;
+}
+
+.partial {
+  background: #a5d6a7;
+}
 
 .tooltip {
   position: fixed;
@@ -89,6 +97,11 @@ body {
 .selected {
   outline: 2px solid var(--primary);
 }
+
+/* NEW: vertical hover band */
+.hoverColumn {
+  background: rgba(0,0,0,0.08) !important;
+}
 </style>
 </head>
 
@@ -100,7 +113,7 @@ body {
   <input type="date" id="datePicker">
 
   <label>Overlap ≥</label>
-  <input type="number" id="threshold" value="3" min="1" max="6" style="width:60px">
+  <input type="number" id="threshold" value="3" min="1" max="7" style="width:60px">
 
   <span id="selection"></span>
 
@@ -143,10 +156,15 @@ function formatFull(date, tz) {
   }).format(date);
 }
 
+function clearHover() {
+  document.querySelectorAll(".hoverColumn").forEach(c => c.classList.remove("hoverColumn"));
+}
+
 function render() {
   const grid = document.getElementById("grid");
   grid.innerHTML = "";
 
+  const threshold = parseInt(document.getElementById("threshold").value);
   const selectedDate = document.getElementById("datePicker").value;
   const base = selectedDate ? new Date(selectedDate + "T00:00:00") : new Date();
 
@@ -165,7 +183,7 @@ function render() {
     grid.appendChild(cell);
   }
 
-  // HEATMAP SCORE
+  // overlap calc
   let overlap = Array(48).fill(0);
 
   zones.forEach(z => {
@@ -173,12 +191,9 @@ function render() {
       const d = new Date(base.getTime() + i * 3600000);
       const hour = getHour(d, z.tz);
 
-      if (hour >= 9 && hour <= 17) overlap[i] += 2;
-      else if (hour >= 7 && hour <= 19) overlap[i] += 1;
+      if (hour >= 9 && hour <= 17) overlap[i]++;
     }
   });
-
-  const maxScore = zones.length * 2;
 
   zones.forEach(zone => {
     const label = document.createElement("div");
@@ -201,6 +216,7 @@ function render() {
 
       const cell = document.createElement("div");
       cell.className = "cell";
+      cell.dataset.col = i;
 
       cell.textContent = new Intl.DateTimeFormat("en-US", {
         hour: "numeric",
@@ -208,16 +224,13 @@ function render() {
         timeZone: zone.tz
       }).format(d);
 
-      // Heatmap color
-      const intensity = overlap[i] / maxScore;
-      if (intensity > 0) {
-        const green = Math.floor(200 * intensity + 55);
-        const red = Math.floor(255 - green * 0.6);
-        cell.style.background = `rgb(${red}, ${green}, 120)`;
-        cell.style.color = intensity > 0.5 ? "white" : "black";
-      }
-
       if (hour < 6 || hour > 20) cell.classList.add("night");
+
+      if (overlap[i] >= threshold) {
+        cell.classList.add("good");
+      } else if (overlap[i] === threshold - 1) {
+        cell.classList.add("partial");
+      }
 
       // tooltip
       cell.addEventListener("mousemove", e => {
@@ -230,6 +243,16 @@ function render() {
 
       cell.addEventListener("mouseleave", () => {
         document.getElementById("tooltip").style.display = "none";
+        clearHover();
+      });
+
+      // NEW: vertical hover band
+      cell.addEventListener("mouseenter", () => {
+        clearHover();
+        const col = cell.dataset.col;
+        document.querySelectorAll(`[data-col='${col}']`).forEach(c => {
+          c.classList.add("hoverColumn");
+        });
       });
 
       // select
@@ -288,6 +311,7 @@ scroller.addEventListener("mousemove", e => {
 
 document.getElementById("datePicker").valueAsDate = new Date();
 document.getElementById("datePicker").addEventListener("change", render);
+document.getElementById("threshold").addEventListener("change", render);
 
 render();
 </script>
