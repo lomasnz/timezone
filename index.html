@@ -2,72 +2,114 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Timezone Grid</title>
+<title>Timezone Planner</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+
 <style>
-  body {
-    font-family: Arial, sans-serif;
-    margin: 20px;
-    background: #f5f7fa;
-  }
+body {
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  background: #f4f6f8;
+}
 
-  .controls {
-    margin-bottom: 20px;
-  }
+.header {
+  padding: 16px 24px;
+  background: white;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
 
-  .row {
-    display: grid;
-    grid-template-columns: 200px repeat(24, 1fr);
-    margin-bottom: 10px;
-    align-items: center;
-  }
+.header h2 {
+  margin: 0;
+  font-weight: 600;
+}
 
-  .label {
-    font-weight: bold;
-    padding-right: 10px;
-  }
+input[type="date"] {
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ddd;
+}
 
-  .time {
-    font-size: 12px;
-    color: #666;
-  }
+.container {
+  overflow-x: auto;
+  cursor: grab;
+}
 
-  .cell {
-    border: 1px solid #ddd;
-    padding: 6px 0;
-    text-align: center;
-    font-size: 12px;
-    background: #fff;
-  }
+.timeline {
+  min-width: 1800px;
+}
 
-  .past {
-    background: #e9eef5;
-  }
+.row {
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid #eee;
+}
 
-  .now {
-    background: #4a90e2;
-    color: white;
-    font-weight: bold;
-  }
+.label {
+  width: 200px;
+  padding: 12px;
+  background: white;
+  position: sticky;
+  left: 0;
+  border-right: 1px solid #eee;
+  z-index: 2;
+}
 
-  .night {
-    background: #2c3e50;
-    color: white;
-  }
+.label strong {
+  display: block;
+}
 
-  .header {
-    font-weight: bold;
-    background: #dfe6f1;
-  }
+.label span {
+  font-size: 12px;
+  color: #666;
+}
+
+.hours {
+  display: flex;
+  position: relative;
+}
+
+.cell {
+  width: 80px;
+  padding: 10px 0;
+  text-align: center;
+  font-size: 12px;
+  border-right: 1px solid #eee;
+}
+
+.headerRow {
+  background: #fafafa;
+  font-weight: 600;
+}
+
+.night {
+  background: #2c3e50;
+  color: white;
+}
+
+.nowLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: red;
+}
 </style>
 </head>
+
 <body>
 
-<div class="controls">
-  <label>Select date: </label>
+<div class="header">
+  <h2>Timezone Planner</h2>
   <input type="date" id="datePicker">
 </div>
 
-<div id="grid"></div>
+<div class="container" id="scrollContainer">
+  <div class="timeline" id="timeline"></div>
+</div>
 
 <script>
 const zones = [
@@ -96,36 +138,39 @@ function getHour(date, tz) {
 }
 
 function render() {
-  const container = document.getElementById("grid");
-  container.innerHTML = "";
+  const timeline = document.getElementById("timeline");
+  timeline.innerHTML = "";
 
   const selectedDate = document.getElementById("datePicker").value;
   const now = new Date();
 
-  let baseDate;
+  let baseDate = selectedDate
+    ? new Date(selectedDate + "T00:00:00")
+    : new Date();
 
-  if (selectedDate) {
-    baseDate = new Date(selectedDate + "T00:00:00");
-  } else {
-    baseDate = new Date();
-  }
+  // Header row
+  const headerRow = document.createElement("div");
+  headerRow.className = "row headerRow";
 
-  // Header
-  const header = document.createElement("div");
-  header.className = "row";
+  const label = document.createElement("div");
+  label.className = "label";
+  headerRow.appendChild(label);
 
-  const blank = document.createElement("div");
-  blank.className = "label";
-  header.appendChild(blank);
+  const hours = document.createElement("div");
+  hours.className = "hours";
 
-  for (let i = 0; i < 24; i++) {
+  for (let i = 0; i < 48; i++) {
+    const d = new Date(baseDate.getTime() + i * 3600000);
+
     const cell = document.createElement("div");
-    cell.className = "cell header";
-    cell.textContent = i;
-    header.appendChild(cell);
+    cell.className = "cell";
+    cell.textContent = d.getHours();
+
+    hours.appendChild(cell);
   }
 
-  container.appendChild(header);
+  headerRow.appendChild(hours);
+  timeline.appendChild(headerRow);
 
   zones.forEach(zone => {
     const row = document.createElement("div");
@@ -141,50 +186,80 @@ function render() {
       timeZone: zone.tz
     }).format(now);
 
-    label.innerHTML = `
-      ${zone.name}<br>
-      <span class="time">${localTime}</span>
-    `;
-
+    label.innerHTML = `<strong>${zone.name}</strong><span>${localTime}</span>`;
     row.appendChild(label);
 
-    for (let i = 0; i < 24; i++) {
-      const cell = document.createElement("div");
-      cell.className = "cell";
+    const hours = document.createElement("div");
+    hours.className = "hours";
 
+    for (let i = 0; i < 48; i++) {
       const d = new Date(baseDate.getTime() + i * 3600000);
       const hour = getHour(d, zone.tz);
 
+      const cell = document.createElement("div");
+      cell.className = "cell";
       cell.textContent = formatHour(d, zone.tz);
-
-      // Highlight current hour ONLY if viewing today
-      if (!selectedDate && i === 0) {
-        cell.classList.add("now");
-      } else {
-        cell.classList.add("past");
-      }
 
       if (hour < 6 || hour > 20) {
         cell.classList.add("night");
       }
 
-      row.appendChild(cell);
+      hours.appendChild(cell);
     }
 
-    container.appendChild(row);
+    // Current time line (only today)
+    if (!selectedDate) {
+      const nowLine = document.createElement("div");
+      nowLine.className = "nowLine";
+
+      const minutes = now.getMinutes();
+      const offset = (minutes / 60) * 80;
+
+      nowLine.style.left = offset + "px";
+      hours.appendChild(nowLine);
+    }
+
+    row.appendChild(hours);
+    timeline.appendChild(row);
   });
 }
 
-// Set default date to today
-document.getElementById("datePicker").valueAsDate = new Date();
+// Drag to scroll
+const container = document.getElementById("scrollContainer");
+let isDown = false;
+let startX;
+let scrollLeft;
 
-// Re-render on change
+container.addEventListener("mousedown", (e) => {
+  isDown = true;
+  startX = e.pageX - container.offsetLeft;
+  scrollLeft = container.scrollLeft;
+  container.style.cursor = "grabbing";
+});
+
+container.addEventListener("mouseleave", () => {
+  isDown = false;
+  container.style.cursor = "grab";
+});
+
+container.addEventListener("mouseup", () => {
+  isDown = false;
+  container.style.cursor = "grab";
+});
+
+container.addEventListener("mousemove", (e) => {
+  if (!isDown) return;
+  e.preventDefault();
+  const x = e.pageX - container.offsetLeft;
+  const walk = (x - startX) * 1.5;
+  container.scrollLeft = scrollLeft - walk;
+});
+
+// Init
+document.getElementById("datePicker").valueAsDate = new Date();
 document.getElementById("datePicker").addEventListener("change", render);
 
-// Initial render
 render();
-
-// Update every minute (only matters for "today")
 setInterval(render, 60000);
 </script>
 
