@@ -63,9 +63,15 @@ body {
   font-size: 12px;
 }
 
-.night { background: #263238; color: white; }
+.night { 
+  background: #37474f; 
+  color: #e0e0e0;
+}
 .work { background: #e3f2fd; }
-.overlap { background: #ffcc80 !important; }
+.overlap { 
+  background: #4caf50 !important;
+  color: white;
+}
 
 .nowLine {
   position: absolute;
@@ -90,6 +96,15 @@ body {
 .selected {
   outline: 2px solid var(--primary);
 }
+.nowLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #ff3d00;
+  z-index: 10;
+  pointer-events: none;
+}Ï
 </style>
 </head>
 
@@ -119,7 +134,8 @@ const zones = [
   { name: "Sydney", tz: "Australia/Sydney" },
   { name: "Bangkok", tz: "Asia/Bangkok" },
   { name: "Manchester", tz: "Europe/London" },
-  { name: "Houston", tz: "America/Chicago" }
+  { name: "Houston", tz: "America/Chicago" },
+  { name: "Denver", tz: "America/Denver" } // 👈 add this
 ];
 
 let selectedCell = null;
@@ -240,20 +256,24 @@ function render() {
     }
   });
 
-  // NOW LINE
+  // NOW LINE (fixed)
+  const existingLine = document.querySelector(".nowLine");
+  if (existingLine) existingLine.remove();
+  
   if (!selectedDate) {
     const now = new Date();
-    const hours = now.getHours();
-    const minutes = now.getMinutes();
-
-    const offset = (hours + minutes / 60) * 80;
-
+  
+    const hoursFromStart = now.getHours() + now.getMinutes() / 60;
+    const offset = hoursFromStart * 80;
+  
     const line = document.createElement("div");
     line.className = "nowLine";
-    line.style.left = 220 + offset + "px";
-
+  
+    // 220 = width of label column
+    line.style.left = (220 + offset) + "px";
+  
     document.getElementById("scroll").appendChild(line);
-  }
+  }Ï
 }
 
 // drag scroll
