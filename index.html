@@ -7,72 +7,88 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
 
 <style>
+:root {
+  --primary: #f57c00; /* Orange */
+  --bg: #f4f6f8;
+  --card: #ffffff;
+}
+
 body {
   font-family: 'Inter', sans-serif;
   margin: 0;
-  background: #f4f6f8;
+  background: var(--bg);
 }
 
 .header {
-  padding: 16px;
-  background: white;
   display: flex;
-  gap: 12px;
-  align-items: center;
+  gap: 16px;
+  padding: 16px;
+  background: var(--card);
   box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+  align-items: center;
 }
 
 .container {
-  overflow-x: auto;
+  overflow: auto;
   cursor: grab;
+  height: calc(100vh - 70px);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: 200px repeat(48, 80px);
-}
-
-.cell {
-  border-right: 1px solid #eee;
-  border-bottom: 1px solid #eee;
-  text-align: center;
-  padding: 8px 0;
-  font-size: 12px;
+  grid-template-columns: 220px repeat(48, 80px);
 }
 
 .label {
   position: sticky;
   left: 0;
-  background: white;
-  text-align: left;
+  background: var(--card);
   padding: 10px;
-  font-weight: 600;
   border-right: 1px solid #ddd;
-  z-index: 2;
+  z-index: 3;
 }
 
-.time {
-  font-size: 11px;
-  color: #666;
+.headerRow {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  background: var(--card);
 }
 
-.headerCell {
-  background: #fafafa;
-  font-weight: 600;
+.cell {
+  border-bottom: 1px solid #eee;
+  border-right: 1px solid #eee;
+  text-align: center;
+  padding: 8px;
+  font-size: 12px;
 }
 
-.night {
-  background: #2c3e50;
+.night { background: #263238; color: white; }
+.work { background: #e3f2fd; }
+.overlap { background: #ffcc80 !important; }
+
+.nowLine {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: red;
+  pointer-events: none;
+}
+
+.tooltip {
+  position: fixed;
+  background: black;
   color: white;
+  padding: 6px 8px;
+  font-size: 11px;
+  border-radius: 4px;
+  pointer-events: none;
+  display: none;
 }
 
-.work {
-  background: #e3f2fd;
-}
-
-.overlap {
-  background: #81c784 !important;
-  color: black;
+.selected {
+  outline: 2px solid var(--primary);
 }
 </style>
 </head>
@@ -81,12 +97,20 @@ body {
 
 <div class="header">
   <strong>Timezone Planner</strong>
+
   <input type="date" id="datePicker">
+
+  <label>Overlap ≥</label>
+  <input type="number" id="threshold" value="3" min="1" max="6" style="width:60px">
+
+  <span id="selection"></span>
 </div>
 
 <div class="container" id="scroll">
   <div id="grid" class="grid"></div>
 </div>
+
+<div id="tooltip" class="tooltip"></div>
 
 <script>
 const zones = [
@@ -97,6 +121,8 @@ const zones = [
   { name: "Manchester", tz: "Europe/London" },
   { name: "Houston", tz: "America/Chicago" }
 ];
+
+let selectedCell = null;
 
 function getParts(date, tz) {
   const parts = new Intl.DateTimeFormat("en-US", {
@@ -112,59 +138,62 @@ function getParts(date, tz) {
   };
 }
 
+function formatFull(date, tz) {
+  return new Intl.DateTimeFormat("en-US", {
+    weekday: "short",
+    hour: "numeric",
+    minute: "numeric",
+    timeZone: tz
+  }).format(date);
+}
+
 function render() {
   const grid = document.getElementById("grid");
   grid.innerHTML = "";
 
-  const selected = document.getElementById("datePicker").value;
-  const base = selected ? new Date(selected + "T00:00:00") : new Date();
+  const threshold = parseInt(document.getElementById("threshold").value);
+  const selectedDate = document.getElementById("datePicker").value;
+  const base = selectedDate ? new Date(selectedDate + "T00:00:00") : new Date();
 
-  // HEADER ROW
+  // HEADER
   grid.appendChild(document.createElement("div"));
 
   for (let i = 0; i < 48; i++) {
     const d = new Date(base.getTime() + i * 3600000);
-    const cell = document.createElement("div");
-    cell.className = "cell headerCell";
 
-    const day = new Intl.DateTimeFormat("en-US", {
-      weekday: "short"
-    }).format(d);
+    const cell = document.createElement("div");
+    cell.className = "cell headerRow";
+
+    const day = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(d);
 
     cell.innerHTML = `${day}<br>${d.getHours()}`;
     grid.appendChild(cell);
   }
 
-  // Pre-calc overlap
-  let overlapMap = Array(48).fill(0);
+  // overlap calc
+  let overlap = Array(48).fill(0);
 
-  zones.forEach(zone => {
+  zones.forEach(z => {
     for (let i = 0; i < 48; i++) {
       const d = new Date(base.getTime() + i * 3600000);
-      const { hour } = getParts(d, zone.tz);
-
-      if (hour >= 9 && hour <= 17) {
-        overlapMap[i]++;
-      }
+      const { hour } = getParts(d, z.tz);
+      if (hour >= 9 && hour <= 17) overlap[i]++;
     }
   });
 
-  // ROWS
   zones.forEach(zone => {
-    const now = new Date();
-
     const label = document.createElement("div");
     label.className = "label";
 
+    const now = new Date();
     const local = new Intl.DateTimeFormat("en-US", {
       hour: "numeric",
       minute: "numeric",
-      hour12: true,
       timeZone: zone.tz,
       timeZoneName: "short"
     }).format(now);
 
-    label.innerHTML = `${zone.name}<div class="time">${local}</div>`;
+    label.innerHTML = `<strong>${zone.name}</strong><div>${local}</div>`;
     grid.appendChild(label);
 
     for (let i = 0; i < 48; i++) {
@@ -174,32 +203,60 @@ function render() {
       const cell = document.createElement("div");
       cell.className = "cell";
 
-      const labelTime = new Intl.DateTimeFormat("en-US", {
+      cell.textContent = new Intl.DateTimeFormat("en-US", {
         hour: "numeric",
         hour12: true,
         timeZone: zone.tz
       }).format(d);
 
-      cell.textContent = labelTime;
+      if (hour < 6 || hour > 20) cell.classList.add("night");
+      if (hour >= 9 && hour <= 17) cell.classList.add("work");
+      if (overlap[i] >= threshold) cell.classList.add("overlap");
 
-      if (hour < 6 || hour > 20) {
-        cell.classList.add("night");
-      }
+      // hover tooltip
+      cell.addEventListener("mousemove", e => {
+        const tip = document.getElementById("tooltip");
+        tip.style.display = "block";
+        tip.style.left = e.pageX + 10 + "px";
+        tip.style.top = e.pageY + 10 + "px";
+        tip.innerHTML = `${zone.name}<br>${formatFull(d, zone.tz)}`;
+      });
 
-      if (hour >= 9 && hour <= 17) {
-        cell.classList.add("work");
-      }
+      cell.addEventListener("mouseleave", () => {
+        document.getElementById("tooltip").style.display = "none";
+      });
 
-      if (overlapMap[i] >= 3) {
-        cell.classList.add("overlap");
-      }
+      // click select
+      cell.addEventListener("click", () => {
+        if (selectedCell) selectedCell.classList.remove("selected");
+        cell.classList.add("selected");
+        selectedCell = cell;
+
+        document.getElementById("selection").innerText =
+          `Selected: ${formatFull(d, zone.tz)}`;
+      });
 
       grid.appendChild(cell);
     }
   });
+
+  // NOW LINE
+  if (!selectedDate) {
+    const now = new Date();
+    const hours = now.getHours();
+    const minutes = now.getMinutes();
+
+    const offset = (hours + minutes / 60) * 80;
+
+    const line = document.createElement("div");
+    line.className = "nowLine";
+    line.style.left = 220 + offset + "px";
+
+    document.getElementById("scroll").appendChild(line);
+  }
 }
 
-// Drag scroll
+// drag scroll
 const scroller = document.getElementById("scroll");
 let isDown = false, startX, scrollLeft;
 
@@ -220,9 +277,9 @@ scroller.addEventListener("mousemove", e => {
   scroller.scrollLeft = scrollLeft - walk;
 });
 
-// Init
 document.getElementById("datePicker").valueAsDate = new Date();
 document.getElementById("datePicker").addEventListener("change", render);
+document.getElementById("threshold").addEventListener("change", render);
 
 render();
 </script>
