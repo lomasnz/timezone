@@ -19,6 +19,55 @@ body {
   background: var(--bg);
 }
 
+  /* CHIP DISPLAY */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
+  cursor: pointer;
+}
+
+/* INDIVIDUAL CHIP */
+.chip {
+  background: #f57c00;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 10px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+/* DROPDOWN LIST */
+.chipList {
+  display: none;
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  max-height: 150px;
+  overflow-y: auto;
+  width: 200px;
+  z-index: 10;
+}
+
+.chipList.open {
+  display: block;
+}
+
+.chipItem {
+  padding: 4px;
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.chipItem:hover {
+  background: #f5f5f5;
+}
+
+.chipContainer {
+  position: relative;
+}
 /* HEADER */
 .header {
   display: flex;
@@ -252,32 +301,73 @@ function formatFull(date, tz) {
 function createDropdown(zone) {
   const wrapper = document.createElement("div");
 
+  // Title
   const title = document.createElement("div");
   title.innerHTML = `<strong>${zone.tz}</strong>`;
   wrapper.appendChild(title);
 
   if (!zone.names.length) return wrapper;
 
-  const select = document.createElement("select");
-  select.multiple = true;
-  select.style.width = "100%";
+  const container = document.createElement("div");
+  container.className = "chipContainer";
 
+  const chips = document.createElement("div");
+  chips.className = "chips";
+
+  const dropdown = document.createElement("div");
+  dropdown.className = "chipDropdown";
+
+  const list = document.createElement("div");
+  list.className = "chipList";
+
+  // Build chips + list
   zone.names.forEach(name => {
-    const opt = document.createElement("option");
-    opt.value = name;
-    opt.textContent = name;
-    opt.selected = true;
-    select.appendChild(opt);
+    // CHIP
+    const chip = document.createElement("div");
+    chip.className = "chip";
+    chip.textContent = name;
+
+    chip.addEventListener("click", () => {
+      selectedPeople.delete(name);
+      render();
+    });
+
+    // LIST ITEM
+    const item = document.createElement("div");
+    item.className = "chipItem";
+
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = true;
+
+    checkbox.addEventListener("change", () => {
+      if (checkbox.checked) {
+        selectedPeople.add(name);
+      } else {
+        selectedPeople.delete(name);
+      }
+      render();
+    });
+
+    item.appendChild(checkbox);
+    item.appendChild(document.createTextNode(name));
+
+    list.appendChild(item);
+
+    // Only show selected chips
+    if (selectedPeople.has(name)) {
+      chips.appendChild(chip);
+    }
   });
 
-  select.addEventListener("change", () => {
-    selectedPeople.clear();
-    document.querySelectorAll("select option:checked")
-      .forEach(o => selectedPeople.add(o.value));
-    render();
+  // Toggle dropdown
+  chips.addEventListener("click", () => {
+    list.classList.toggle("open");
   });
 
-  wrapper.appendChild(select);
+  container.appendChild(chips);
+  container.appendChild(list);
+  wrapper.appendChild(container);
 
   return wrapper;
 }
