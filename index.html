@@ -19,55 +19,6 @@ body {
   background: var(--bg);
 }
 
-  /* CHIP DISPLAY */
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-  cursor: pointer;
-}
-
-/* INDIVIDUAL CHIP */
-.chip {
-  background: #f57c00;
-  color: white;
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-size: 11px;
-  white-space: nowrap;
-}
-
-/* DROPDOWN LIST */
-.chipList {
-  display: none;
-  position: absolute;
-  background: white;
-  border: 1px solid #ccc;
-  max-height: 150px;
-  overflow-y: auto;
-  width: 200px;
-  z-index: 10;
-}
-
-.chipList.open {
-  display: block;
-}
-
-.chipItem {
-  padding: 4px;
-  display: flex;
-  gap: 6px;
-  font-size: 12px;
-}
-
-.chipItem:hover {
-  background: #f5f5f5;
-}
-
-.chipContainer {
-  position: relative;
-}
 /* HEADER */
 .header {
   display: flex;
@@ -87,12 +38,11 @@ body {
 .container {
   overflow: auto;
   cursor: grab;
-  height: calc(100vh - 70px);
 }
 
 .grid {
   display: grid;
-  grid-template-columns: 220px repeat(48, 80px);
+  grid-template-columns: 280px repeat(48, 80px);
 }
 
 .label {
@@ -102,6 +52,15 @@ body {
   padding: 10px;
   border-right: 1px solid #ddd;
   z-index: 3;
+}
+
+.zoneTitle {
+  font-weight: 600;
+}
+
+.zoneSub {
+  font-size: 11px;
+  color: #666;
 }
 
 .headerRow {
@@ -135,27 +94,33 @@ body {
   color: #1b5e20;
 }
 
-/* Hover = overlay only (important fix) */
 .hoverColumn {
   box-shadow: inset 0 0 0 4px rgba(245,124,0,0.4);
 }
 
-/* Selected always wins */
-.selected {
-  background: #f57c00 !important;
-  color: white !important;
+/* CHIPS */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 4px;
 }
 
-/* TOOLTIP */
-.tooltip {
-  position: fixed;
-  background: black;
+.chip {
+  background: #f57c00;
   color: white;
-  padding: 6px 8px;
+  padding: 2px 6px;
+  border-radius: 10px;
   font-size: 11px;
-  border-radius: 4px;
-  pointer-events: none;
-  display: none;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+
+.chipX {
+  font-weight: bold;
+  opacity: 0.8;
 }
 
 /* LEGEND */
@@ -168,7 +133,6 @@ body {
 .legendRow {
   display: flex;
   gap: 24px;
-  flex-wrap: wrap;
 }
 
 .legendItem {
@@ -191,44 +155,34 @@ body {
 
 <div class="header">
   <strong>Timezone Planner</strong>
-
   <input type="date" id="datePicker">
-
   <label>Overlap ≥</label>
   <input type="number" id="threshold" value="3" min="1" max="7" style="width:60px">
-
-  <span id="selection"></span>
-
   <div id="clock"></div>
 </div>
 
-<div class="container" id="scroll">
+<div class="container">
   <div id="grid" class="grid"></div>
 </div>
 
-<!-- LEGEND -->
 <div class="legend">
   <div class="legendRow">
     <div class="legendItem"><div class="legendCell good"></div>Good</div>
     <div class="legendItem"><div class="legendCell partial"></div>Almost</div>
     <div class="legendItem"><div class="legendCell night"></div>Night</div>
-    <div class="legendItem"><div class="legendCell selected"></div>Selected</div>
     <div class="legendItem"><div class="legendCell hoverColumn"></div>Hover</div>
   </div>
 </div>
 
-<div id="tooltip" class="tooltip"></div>
-
 <script>
-const DEFAULT_ZONES = [
-  { name: "Wellington", tz: "Pacific/Auckland" },
-  { name: "Melbourne", tz: "Australia/Melbourne" },
-  { name: "Sydney", tz: "Australia/Sydney" },
-  { name: "Bangkok", tz: "Asia/Bangkok" },
-  { name: "Manchester", tz: "Europe/London" },
-  { name: "Houston", tz: "America/Chicago" },
-  { name: "Denver", tz: "America/Denver" }
-];
+const ZONE_LABELS = {
+  "Pacific/Auckland": "Wellington",
+  "Australia/Sydney": "Sydney",
+  "America/Chicago": "Chicago",
+  "Europe/London": "London",
+  "America/Denver": "Denver",
+  "Asia/Bangkok": "Bangkok"
+};
 
 let people = [];
 let zones = [];
@@ -238,47 +192,26 @@ function getQueryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
 }
 
-// GROUP PEOPLE BY TIMEZONE
 function groupByTimezone(data) {
   const map = {};
-
   data.forEach(p => {
     if (!map[p.tz]) map[p.tz] = [];
     map[p.tz].push(p.name);
   });
 
-  return Object.entries(map).map(([tz, names]) => ({
-    tz,
-    names
-  }));
+  return Object.entries(map).map(([tz, names]) => ({ tz, names }));
 }
 
-// LOAD TEAM JSON
 async function loadTeam() {
   const url = getQueryParam("team");
+  const res = await fetch(url);
+  const data = await res.json();
 
-  if (!url) {
-    zones = DEFAULT_ZONES.map(z => ({ tz: z.tz, names: [] }));
-    return;
-  }
-
-  try {
-    const res = await fetch(url);
-    const data = await res.json();
-
-    people = data;
-    zones = groupByTimezone(data);
-
-    // default: all selected
-    data.forEach(p => selectedPeople.add(p.name));
-
-  } catch (e) {
-    console.error("Failed to load team", e);
-    zones = DEFAULT_ZONES.map(z => ({ tz: z.tz, names: [] }));
-  }
+  people = data;
+  zones = groupByTimezone(data);
+  data.forEach(p => selectedPeople.add(p.name));
 }
 
-// GET HOUR
 function getHour(date, tz) {
   return parseInt(new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
@@ -287,92 +220,29 @@ function getHour(date, tz) {
   }).format(date));
 }
 
-// FORMAT
-function formatFull(date, tz) {
-  return new Intl.DateTimeFormat("en-US", {
-    weekday: "short",
-    hour: "numeric",
-    minute: "numeric",
-    timeZone: tz
-  }).format(date);
-}
-
-// DROPDOWN UI
-function createDropdown(zone) {
-  const wrapper = document.createElement("div");
-
-  // Title
-  const title = document.createElement("div");
-  title.innerHTML = `<strong>${zone.tz}</strong>`;
-  wrapper.appendChild(title);
-
-  if (!zone.names.length) return wrapper;
-
+function createChips(zone) {
   const container = document.createElement("div");
-  container.className = "chipContainer";
+  container.className = "chips";
 
-  const chips = document.createElement("div");
-  chips.className = "chips";
-
-  const dropdown = document.createElement("div");
-  dropdown.className = "chipDropdown";
-
-  const list = document.createElement("div");
-  list.className = "chipList";
-
-  // Build chips + list
   zone.names.forEach(name => {
-    // CHIP
+    if (!selectedPeople.has(name)) return;
+
     const chip = document.createElement("div");
     chip.className = "chip";
-    chip.textContent = name;
+
+    chip.innerHTML = `${name} <span class="chipX">×</span>`;
 
     chip.addEventListener("click", () => {
       selectedPeople.delete(name);
       render();
     });
 
-    // LIST ITEM
-    const item = document.createElement("div");
-    item.className = "chipItem";
-
-    const checkbox = document.createElement("input");
-    checkbox.type = "checkbox";
-    checkbox.checked = true;
-
-    checkbox.addEventListener("change", () => {
-      if (checkbox.checked) {
-        selectedPeople.add(name);
-      } else {
-        selectedPeople.delete(name);
-      }
-      render();
-    });
-
-    item.appendChild(checkbox);
-    item.appendChild(document.createTextNode(name));
-
-    list.appendChild(item);
-
-    // Only show selected chips
-    if (selectedPeople.has(name)) {
-      chips.appendChild(chip);
-    }
+    container.appendChild(chip);
   });
 
-  // Toggle dropdown
-  chips.addEventListener("click", () => {
-    list.classList.toggle("open");
-  });
-
-  container.appendChild(chips);
-  container.appendChild(list);
-  wrapper.appendChild(container);
-
-  return wrapper;
+  return container;
 }
 
-// RENDER
 function render() {
   const grid = document.getElementById("grid");
   grid.innerHTML = "";
@@ -384,7 +254,6 @@ function render() {
 
   for (let i = 0; i < 48; i++) {
     const d = new Date(base.getTime() + i * 3600000);
-
     const cell = document.createElement("div");
     cell.className = "cell headerRow";
 
@@ -415,7 +284,12 @@ function render() {
     const label = document.createElement("div");
     label.className = "label";
 
-    label.appendChild(createDropdown(zone));
+    label.innerHTML = `
+      <div class="zoneTitle">${ZONE_LABELS[zone.tz] || zone.tz}</div>
+      <div class="zoneSub">${zone.tz}</div>
+    `;
+
+    label.appendChild(createChips(zone));
     grid.appendChild(label);
 
     for (let i = 0; i < 48; i++) {
@@ -462,9 +336,7 @@ function updateClock() {
 }
 
 setInterval(updateClock, 1000);
-updateClock();
 
-// INIT
 async function init() {
   await loadTeam();
   render();
