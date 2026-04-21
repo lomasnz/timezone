@@ -335,10 +335,19 @@ function escapeHtml(text) {
 
 function getBaseDate() {
   const selectedDate = document.getElementById("datePicker").value;
+  let base;
+  
   if (selectedDate) {
-    return new Date(selectedDate + "T00:00:00");
+    // force UTC base to avoid timezone drift
+    base = new Date(selectedDate + "T00:00:00Z");
+  } else {
+    const now = new Date();
+    base = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate()
+    ));
   }
-  return new Date();
 }
 
 function render() {
@@ -353,8 +362,23 @@ function render() {
   emptyState.style.display = "none";
 
   const threshold = parseInt(document.getElementById("threshold").value, 10) || 3;
-  const base = getBaseDate();
 
+  // ✅ FIX 1: stable base date (UTC to avoid drift)
+  const selectedDate = document.getElementById("datePicker").value;
+
+  let base;
+  if (selectedDate) {
+    base = new Date(selectedDate + "T00:00:00Z");
+  } else {
+    const now = new Date();
+    base = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate()
+    ));
+  }
+
+  // HEADER
   grid.appendChild(document.createElement("div"));
 
   for (let i = 0; i < 48; i++) {
@@ -362,8 +386,17 @@ function render() {
     const cell = document.createElement("div");
     cell.className = "cell headerRow";
 
-    const day = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(d);
-    const hour = d.getHours();
+    // ✅ FIX 2: force UTC so day labels don't drift
+    const day = new Intl.DateTimeFormat("en-US", {
+      weekday: "short",
+      timeZone: "UTC"
+    }).format(d);
+
+    const hour = new Intl.DateTimeFormat("en-US", {
+      hour: "numeric",
+      hour12: false,
+      timeZone: "UTC"
+    }).format(d);
 
     cell.innerHTML = `${day}<br>${hour}`;
     grid.appendChild(cell);
@@ -371,6 +404,7 @@ function render() {
 
   const overlap = Array(48).fill(0);
 
+  // OVERLAP CALC
   for (const zone of zones) {
     const selectedInZone = zone.people.filter(p => selectedPeople.has(p.name));
 
@@ -379,11 +413,15 @@ function render() {
       const hour = getHour(d, zone.tz);
 
       if (hour >= 9 && hour <= 17) {
-        overlap[i] += selectedInZone.length;
+        // ✅ FIX 3: count zone presence, not number of people
+        if (selectedInZone.length > 0) {
+          overlap[i] += 1;
+        }
       }
     }
   }
 
+  // RENDER ROWS
   for (const zone of zones) {
     const label = document.createElement("div");
     label.className = "label";
