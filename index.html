@@ -248,7 +248,15 @@ function render() {
   grid.innerHTML = "";
 
   const threshold = parseInt(document.getElementById("threshold").value);
-  const base = new Date();
+  const selectedDate = document.getElementById("datePicker").value;
+
+  let base;
+  
+  if (selectedDate) {
+    base = new Date(selectedDate + "T00:00:00");
+  } else {
+    base = new Date();
+  }Ï
 
   grid.appendChild(document.createElement("div"));
 
@@ -330,11 +338,12 @@ function render() {
 }
 
 // CLOCK
+document.getElementById("datePicker").valueAsDate = new Date();
 function updateClock() {
   document.getElementById("clock").innerText =
     new Date().toLocaleTimeString();
 }
-
+document.getElementById("datePicker").addEventListener("change", render);
 setInterval(updateClock, 1000);
 
 async function init() {
