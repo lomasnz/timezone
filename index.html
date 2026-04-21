@@ -1,380 +1,58 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Timezone Planner</title>
+=LET(
+  sites, FILTER(Sites!A3:A, Sites!A3:A<>""),
+  start, FILTER(Sites!E3:E, Sites!A3:A<>""),
 
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+  tStep, FILTER(Task_Template!A3:A, Task_Template!A3:A<>""),
+  tTask, FILTER(Task_Template!B3:B, Task_Template!A3:A<>""),
+  tOffset, FILTER(Task_Template!C3:C, Task_Template!A3:A<>""),
+  tDuration, FILTER(Task_Template!D3:D, Task_Template!A3:A<>""),
+  tScope, FILTER(Task_Template!F3:F, Task_Template!A3:A<>""),
 
-<style>
-:root {
-  --primary: #f57c00;
-  --bg: #f4f6f8;
-  --card: #ffffff;
-}
+  siteSteps, FILTER(tStep, tScope="SITE"),
+  siteTasks, FILTER(tTask, tScope="SITE"),
+  siteOffsets, FILTER(tOffset, tScope="SITE"),
+  siteDurations, FILTER(tDuration, tScope="SITE"),
 
-body {
-  font-family: 'Inter', sans-serif;
-  margin: 0;
-  background: var(--bg);
-}
+  globalSteps, IFERROR(FILTER(tStep, tScope="GLOBAL"), ""),
+  globalTasks, IFERROR(FILTER(tTask, tScope="GLOBAL"), ""),
+  globalOffsets, IFERROR(FILTER(tOffset, tScope="GLOBAL"), ""),
+  globalDurations, IFERROR(FILTER(tDuration, tScope="GLOBAL"), ""),
 
-/* HEADER */
-.header {
-  display: flex;
-  gap: 16px;
-  padding: 16px;
-  background: var(--card);
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-  align-items: center;
-}
+  nSites, ROWS(sites),
+  nTasks, ROWS(siteSteps),
+  nRows, nSites * nTasks,
 
-#clock {
-  margin-left: auto;
-  font-weight: 600;
-}
+  taskIdx, MOD(SEQUENCE(nRows) - 1, nTasks) + 1,
+  siteIdx, INT((SEQUENCE(nRows) - 1) / nTasks) + 1,
 
-/* GRID */
-.container {
-  overflow: auto;
-  cursor: grab;
-}
+  siteData,
+    SPLIT(
+      FLATTEN(
+        INDEX(siteSteps, taskIdx) & "♦" &
+        INDEX(sites, siteIdx) & "♦" &
+        INDEX(siteTasks, taskIdx) & "♦" &
+        (INDEX(start, siteIdx) + INDEX(siteOffsets, taskIdx)) & "♦" &
+        INDEX(siteDurations, taskIdx)
+      ),
+      "♦"
+    ),
 
-.grid {
-  display: grid;
-  grid-template-columns: 280px repeat(48, 80px);
-}
-
-.label {
-  position: sticky;
-  left: 0;
-  background: var(--card);
-  padding: 10px;
-  border-right: 1px solid #ddd;
-  z-index: 3;
-}
-
-.zoneTitle {
-  font-weight: 600;
-}
-
-.zoneSub {
-  font-size: 11px;
-  color: #666;
-}
-
-.headerRow {
-  position: sticky;
-  top: 0;
-  z-index: 4;
-  background: var(--card);
-}
-
-.cell {
-  border-bottom: 1px solid #eee;
-  border-right: 1px solid #eee;
-  text-align: center;
-  padding: 8px;
-  font-size: 12px;
-}
-
-/* STATES */
-.night {
-  background: #37474f;
-  color: #e0e0e0;
-}
-
-.good {
-  background: #8bc400;
-  color: white;
-}
-
-.partial {
-  background: #c8e6c9;
-  color: #1b5e20;
-}
-
-.hoverColumn {
-  box-shadow: inset 0 0 0 4px rgba(245,124,0,0.4);
-}
-
-/* CHIPS */
-.chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin-top: 4px;
-}
-
-.chip {
-  padding: 2px 6px;
-  border-radius: 10px;
-  font-size: 11px;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  cursor: pointer;
-}
-
-/* PERSON (default orange) */
-.chipPerson {
-  background: #f57c00;
-  color: white;
-}
-
-/* ORG (dark/black) */
-.chipOrg {
-  background: #263238;
-  color: white;
-  opacity: 0.9;
-}
-
-.chipX {
-  font-weight: bold;
-  opacity: 0.8;
-}
-
-/* LEGEND */
-.legend {
-  padding: 12px 16px;
-  background: var(--card);
-  border-top: 1px solid #eee;
-}
-
-.legendRow {
-  display: flex;
-  gap: 24px;
-}
-
-.legendItem {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.legendCell {
-  width: 40px;
-  height: 24px;
-  border-radius: 2px;
-  border: 1px solid #ddd;
-}
-</style>
-</head>
-
-<body>
-
-<div class="header">
-  <strong>Timezone Planner</strong>
-  <input type="date" id="datePicker">
-  <label>Overlap ≥</label>
-  <input type="number" id="threshold" value="3" min="1" max="7" style="width:60px">
-  <div id="clock"></div>
-</div>
-
-<div class="container">
-  <div id="grid" class="grid"></div>
-</div>
-
-<div class="legend">
-  <div class="legendRow">
-    <div class="legendItem"><div class="legendCell good"></div>Good</div>
-    <div class="legendItem"><div class="legendCell partial"></div>Almost</div>
-    <div class="legendItem"><div class="legendCell night"></div>Night</div>
-    <div class="legendItem"><div class="legendCell hoverColumn"></div>Hover</div>
-  </div>
-</div>
-
-<script>
-const ZONE_LABELS = {
-  "Pacific/Auckland": "Wellington",
-  "Australia/Sydney": "Sydney",
-  "America/Chicago": "Chicago",
-  "Europe/London": "London",
-  "America/Denver": "Denver",
-  "Asia/Bangkok": "Bangkok"
-};
-
-let people = [];
-let zones = [];
-let selectedPeople = new Set();
-
-function getQueryParam(name) {
-  return new URLSearchParams(window.location.search).get(name);
-}
-
-function groupByTimezone(data) {
-  const map = {};
-  data.forEach(p => {
-    if (!map[p.tz]) map[p.tz] = [];
-    map[p.tz].push(p);
-  });
-
-  return Object.entries(map).map(([tz, names]) => ({
-    tz,
-    names
-  }));
-}
-
-async function loadTeam() {
-  const url = getQueryParam("team");
-  const res = await fetch(url);
-  const data = await res.json();
-
-  people = data;
-  zones = groupByTimezone(data);
-  data.forEach(p => selectedPeople.add(p.name));
-}
-
-function getHour(date, tz) {
-  return parseInt(new Intl.DateTimeFormat("en-US", {
-    hour: "numeric",
-    hour12: false,
-    timeZone: tz
-  }).format(date));
-}
-
-function createChips(zone) {
-  const container = document.createElement("div");
-  container.className = "chips";
-
-  zone.people.forEach(p => {
-    if (!selectedPeople.has(p.name)) return;
-
-    const chip = document.createElement("div");
-
-    // TYPE-BASED STYLE
-    if (p.type === "org") {
-      chip.className = "chip chipOrg";
-    } else {
-      chip.className = "chip chipPerson";
-    }
-
-    chip.innerHTML = `${p.name} <span class="chipX">×</span>`;
-
-    chip.addEventListener("click", () => {
-      selectedPeople.delete(p.name);
-      render();
-    });
-
-    container.appendChild(chip);
-  });
-
-  return container;
-}
-
-function render() {
-  const grid = document.getElementById("grid");
-  grid.innerHTML = "";
-
-  const threshold = parseInt(document.getElementById("threshold").value);
-  const selectedDate = document.getElementById("datePicker").value;
-
-  let base;
-  
-  if (selectedDate) {
-    base = new Date(selectedDate + "T00:00:00");
-  } else {
-    base = new Date();
-  }Ï
-
-  grid.appendChild(document.createElement("div"));
-
-  for (let i = 0; i < 48; i++) {
-    const d = new Date(base.getTime() + i * 3600000);
-    const cell = document.createElement("div");
-    cell.className = "cell headerRow";
-
-    const day = new Intl.DateTimeFormat("en-US", { weekday: "short" }).format(d);
-    cell.innerHTML = `${day}<br>${d.getHours()}`;
-
-    grid.appendChild(cell);
-  }
-
-  let overlap = Array(48).fill(0);
-
-  zones.forEach(zone => {
-   const peopleInZone = zone.people.filter(p =>
-  selectedPeople.has(p.name)
-);
-
-    for (let i = 0; i < 48; i++) {
-      const d = new Date(base.getTime() + i * 3600000);
-      const hour = getHour(d, zone.tz);
-
-      if (hour >= 9 && hour <= 17) {
-        overlap[i] += peopleInZone.length;
+  globalData,
+    IF(
+      COUNTA(globalSteps)=0,
+      ,
+      {
+        globalSteps,
+        ARRAYFORMULA(IF(globalSteps<>"","ALL","")),
+        globalTasks,
+        INDEX(start,1) + globalOffsets,
+        globalDurations
       }
-    }
-  });
+    ),
 
-  zones.forEach(zone => {
-    const label = document.createElement("div");
-    label.className = "label";
-
-    label.innerHTML = `
-      <div class="zoneTitle">${ZONE_LABELS[zone.tz] || zone.tz}</div>
-      <div class="zoneSub">${zone.tz}</div>
-    `;
-
-    label.appendChild(createChips(zone));
-    grid.appendChild(label);
-
-    for (let i = 0; i < 48; i++) {
-      const d = new Date(base.getTime() + i * 3600000);
-      const hour = getHour(d, zone.tz);
-
-      const cell = document.createElement("div");
-      cell.className = "cell";
-      cell.dataset.col = i;
-
-      cell.textContent = new Intl.DateTimeFormat("en-US", {
-        hour: "numeric",
-        hour12: true,
-        timeZone: zone.tz
-      }).format(d);
-
-      if (hour < 6 || hour > 20) cell.classList.add("night");
-
-      if (overlap[i] >= threshold) {
-        cell.classList.add("good");
-      } else if (overlap[i] >= threshold - 1) {
-        cell.classList.add("partial");
-      }
-
-      cell.addEventListener("mouseenter", () => {
-        document.querySelectorAll(`[data-col='${i}']`)
-          .forEach(c => c.classList.add("hoverColumn"));
-      });
-
-      cell.addEventListener("mouseleave", () => {
-        document.querySelectorAll(".hoverColumn")
-          .forEach(c => c.classList.remove("hoverColumn"));
-      });
-
-      grid.appendChild(cell);
-    }
-  });
-}
-
-// CLOCK
-document.getElementById("datePicker").valueAsDate = new Date();
-function updateClock() {
-  document.getElementById("clock").innerText =
-    new Date().toLocaleTimeString();
-}
-document.getElementById("datePicker").addEventListener("change", render);
-setInterval(updateClock, 1000);
-
-async function init() {
-  await loadTeam();
-  render();
-}
-
-document.getElementById("threshold").addEventListener("change", render);
-
-init();
-</script>
-
-</body>
-</html>
+  SORT(
+    VSTACK(siteData, globalData),
+    2, TRUE,
+    1, TRUE
+  )
+)
