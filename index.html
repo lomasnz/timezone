@@ -107,8 +107,6 @@ body {
 }
 
 .chip {
-  background: #f57c00;
-  color: white;
   padding: 2px 6px;
   border-radius: 10px;
   font-size: 11px;
@@ -116,6 +114,19 @@ body {
   align-items: center;
   gap: 4px;
   cursor: pointer;
+}
+
+/* PERSON (default orange) */
+.chipPerson {
+  background: #f57c00;
+  color: white;
+}
+
+/* ORG (dark/black) */
+.chipOrg {
+  background: #263238;
+  color: white;
+  opacity: 0.9;
 }
 
 .chipX {
@@ -196,10 +207,13 @@ function groupByTimezone(data) {
   const map = {};
   data.forEach(p => {
     if (!map[p.tz]) map[p.tz] = [];
-    map[p.tz].push(p.name);
+    map[p.tz].push(p);
   });
 
-  return Object.entries(map).map(([tz, names]) => ({ tz, names }));
+  return Object.entries(map).map(([tz, names]) => ({
+    tz,
+    names
+  }));
 }
 
 async function loadTeam() {
@@ -224,16 +238,22 @@ function createChips(zone) {
   const container = document.createElement("div");
   container.className = "chips";
 
-  zone.names.forEach(name => {
-    if (!selectedPeople.has(name)) return;
+  zone.people.forEach(p => {
+    if (!selectedPeople.has(p.name)) return;
 
     const chip = document.createElement("div");
-    chip.className = "chip";
 
-    chip.innerHTML = `${name} <span class="chipX">×</span>`;
+    // TYPE-BASED STYLE
+    if (p.type === "org") {
+      chip.className = "chip chipOrg";
+    } else {
+      chip.className = "chip chipPerson";
+    }
+
+    chip.innerHTML = `${p.name} <span class="chipX">×</span>`;
 
     chip.addEventListener("click", () => {
-      selectedPeople.delete(name);
+      selectedPeople.delete(p.name);
       render();
     });
 
@@ -274,9 +294,9 @@ function render() {
   let overlap = Array(48).fill(0);
 
   zones.forEach(zone => {
-    const peopleInZone = people.filter(p =>
-      p.tz === zone.tz && selectedPeople.has(p.name)
-    );
+   const peopleInZone = zone.people.filter(p =>
+  selectedPeople.has(p.name)
+);
 
     for (let i = 0; i < 48; i++) {
       const d = new Date(base.getTime() + i * 3600000);
