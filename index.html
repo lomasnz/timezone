@@ -15,6 +15,7 @@
   --good: #8bc400;
   --almost: #c8e6c9;
   --night: #37474f;
+  --neutral: #ffffff;
 }
 
 * {
@@ -36,6 +37,11 @@ body {
   box-shadow: 0 2px 6px rgba(0,0,0,0.08);
   align-items: center;
   flex-wrap: wrap;
+}
+
+.headerMeta {
+  color: var(--text-muted);
+  font-size: 12px;
 }
 
 #clock {
@@ -87,6 +93,7 @@ body {
   padding: 8px;
   font-size: 12px;
   min-height: 44px;
+  background: var(--neutral);
 }
 
 .night {
@@ -166,6 +173,7 @@ body {
   height: 24px;
   border-radius: 2px;
   border: 1px solid #ddd;
+  background: var(--neutral);
 }
 
 .legendHover {
@@ -186,6 +194,7 @@ body {
   <input type="date" id="datePicker">
   <label for="threshold">Overlap ≥</label>
   <input type="number" id="threshold" value="3" min="1" max="99" style="width:80px">
+  <div class="headerMeta" id="baseTimezoneLabel"></div>
   <div id="clock"></div>
 </div>
 
@@ -199,14 +208,15 @@ body {
     <div class="legendItem"><div class="legendCell good"></div>Good</div>
     <div class="legendItem"><div class="legendCell partial"></div>Almost</div>
     <div class="legendItem"><div class="legendCell night"></div>Night</div>
-    <div class="legendItem"><div class="legendCell legendHover"></div>Hover</div>
+    <div class="legendItem"><div class="legendCell"></div>Daytime, below overlap</div>
+    <div class="legendItem"><div class="legendCell legendHover"></div>Highlighted column</div>
   </div>
 </div>
 
 <script>
 const DEFAULT_ZONES = [
   { label: "Wellington", tz: "Pacific/Auckland" },
-  { label: "Sydney and Melbourn", tz: "Australia/Sydney" },
+  { label: "Sydney and Melbourne", tz: "Australia/Sydney" },
   { label: "Houston", tz: "America/Chicago" },
   { label: "London and Manchester", tz: "Europe/London" },
   { label: "Idaho", tz: "America/Denver" },
@@ -215,10 +225,10 @@ const DEFAULT_ZONES = [
 
 const ZONE_LABELS = {
   "Pacific/Auckland": "Wellington",
-  "Australia/Sydney": "Sydney",
-  "America/Chicago": "Chicago",
-  "Europe/London": "London",
-  "America/Denver": "Denver",
+  "Australia/Sydney": "Sydney and Melbourne",
+  "America/Chicago": "Houston",
+  "Europe/London": "London and Manchester",
+  "America/Denver": "Idaho",
   "Asia/Bangkok": "Bangkok"
 };
 
@@ -228,6 +238,21 @@ let selectedPeople = new Set();
 
 function getQueryParam(name) {
   return new URLSearchParams(window.location.search).get(name);
+}
+
+function getBrowserTimeZone() {
+  return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+}
+
+function formatTimeInZone(date, tz, options = {}) {
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    ...options
+  }).format(date);
+}
+
+function getZoneLabel(tz) {
+  return ZONE_LABELS[tz] || tz;
 }
 
 function groupByTimezone(data) {
@@ -245,7 +270,7 @@ function groupByTimezone(data) {
 
   return Array.from(map.entries()).map(([tz, peopleInZone]) => ({
     tz,
-    label: ZONE_LABELS[tz] || tz,
+    label: getZoneLabel(tz),
     people: peopleInZone
   }));
 }
@@ -294,14 +319,13 @@ async function loadTeam() {
 }
 
 function getHour(date, tz) {
-  return parseInt(
-    new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      hour12: false,
-      timeZone: tz
-    }).format(date),
-    10
-  );
+  const value = new Intl.DateTimeFormat("en-US", {
+    hour: "2-digit",
+    hour12: false,
+    timeZone: tz
+  }).format(date);
+
+  return parseInt(value, 10);
 }
 
 function createChips(zone) {
@@ -335,25 +359,35 @@ function escapeHtml(text) {
 
 function getBaseDate() {
   const selectedDate = document.getElementById("datePicker").value;
-  let base;
-  
+
   if (selectedDate) {
-    // force UTC base to avoid timezone drift
-    base = new Date(selectedDate + "T00:00:00Z");
-  } else {
-    const now = new Date();
-    base = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate()
-    ));
+    const [year, month, day] = selectedDate.split("-").map(Number);
+    return new Date(year, month - 1, day, 0, 0, 0, 0);
   }
+
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+}
+
+function isNightHour(hour) {
+  return hour < 6 || hour > 20;
+}
+
+function isWorkingHour(hour) {
+  return hour >= 9 && hour <= 17;
+}
+
+function isEligibleForOverlapColor(hour) {
+  return hour >= 5;
 }
 
 function render() {
   const grid = document.getElementById("grid");
   const emptyState = document.getElementById("emptyState");
+  const baseTz = getBrowserTimeZone();
+
   grid.innerHTML = "";
+  document.getElementById("baseTimezoneLabel").textContent = `Slots shown in ${baseTz}`;
 
   if (!zones.length) {
     emptyState.style.display = "block";
@@ -362,23 +396,8 @@ function render() {
   emptyState.style.display = "none";
 
   const threshold = parseInt(document.getElementById("threshold").value, 10) || 3;
+  const base = getBaseDate();
 
-  // ✅ FIX 1: stable base date (UTC to avoid drift)
-  const selectedDate = document.getElementById("datePicker").value;
-
-  let base;
-  if (selectedDate) {
-    base = new Date(selectedDate + "T00:00:00Z");
-  } else {
-    const now = new Date();
-    base = new Date(Date.UTC(
-      now.getUTCFullYear(),
-      now.getUTCMonth(),
-      now.getUTCDate()
-    ));
-  }
-
-  // HEADER
   grid.appendChild(document.createElement("div"));
 
   for (let i = 0; i < 48; i++) {
@@ -386,17 +405,15 @@ function render() {
     const cell = document.createElement("div");
     cell.className = "cell headerRow";
 
-    // ✅ FIX 2: force UTC so day labels don't drift
-    const day = new Intl.DateTimeFormat("en-US", {
-      weekday: "short",
-      timeZone: "UTC"
-    }).format(d);
+    const day = formatTimeInZone(d, baseTz, {
+      weekday: "short"
+    });
 
-    const hour = new Intl.DateTimeFormat("en-US", {
-      hour: "numeric",
-      hour12: false,
-      timeZone: "UTC"
-    }).format(d);
+    const hour = formatTimeInZone(d, baseTz, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    });
 
     cell.innerHTML = `${day}<br>${hour}`;
     grid.appendChild(cell);
@@ -404,24 +421,20 @@ function render() {
 
   const overlap = Array(48).fill(0);
 
-  // OVERLAP CALC
   for (const zone of zones) {
     const selectedInZone = zone.people.filter(p => selectedPeople.has(p.name));
+    if (selectedInZone.length === 0) continue;
 
     for (let i = 0; i < 48; i++) {
       const d = new Date(base.getTime() + i * 3600000);
       const hour = getHour(d, zone.tz);
 
-      if (hour >= 9 && hour <= 17) {
-        // ✅ FIX 3: count zone presence, not number of people
-        if (selectedInZone.length > 0) {
-          overlap[i] += 1;
-        }
+      if (isWorkingHour(hour)) {
+        overlap[i] += 1;
       }
     }
   }
 
-  // RENDER ROWS
   for (const zone of zones) {
     const label = document.createElement("div");
     label.className = "label";
@@ -440,20 +453,19 @@ function render() {
       cell.className = "cell";
       cell.dataset.col = String(i);
 
-      cell.textContent = new Intl.DateTimeFormat("en-US", {
+      cell.textContent = formatTimeInZone(d, zone.tz, {
         hour: "numeric",
-        hour12: true,
-        timeZone: zone.tz
-      }).format(d);
+        hour12: true
+      });
 
-      if (hour < 6 || hour > 20) {
+      if (isNightHour(hour)) {
         cell.classList.add("night");
-      }
-
-      if (overlap[i] >= threshold) {
-        cell.classList.add("good");
-      } else if (overlap[i] === threshold - 1) {
-        cell.classList.add("partial");
+      } else if (isEligibleForOverlapColor(hour)) {
+        if (overlap[i] >= threshold) {
+          cell.classList.add("good");
+        } else if (overlap[i] === threshold - 1) {
+          cell.classList.add("partial");
+        }
       }
 
       cell.addEventListener("mouseenter", () => {
@@ -474,11 +486,22 @@ function render() {
 }
 
 function updateClock() {
-  document.getElementById("clock").innerText = new Date().toLocaleTimeString();
+  const baseTz = getBrowserTimeZone();
+  document.getElementById("clock").innerText = formatTimeInZone(new Date(), baseTz, {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false
+  });
 }
 
 async function init() {
-  document.getElementById("datePicker").valueAsDate = new Date();
+  const now = new Date();
+  const yyyy = now.getFullYear();
+  const mm = String(now.getMonth() + 1).padStart(2, "0");
+  const dd = String(now.getDate()).padStart(2, "0");
+  document.getElementById("datePicker").value = `${yyyy}-${mm}-${dd}`;
+
   await loadTeam();
   render();
   updateClock();
