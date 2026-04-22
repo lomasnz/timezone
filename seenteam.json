@@ -2,12 +2,12 @@
   "baseTimezone": "Pacific/Auckland",
 
   "timezones": {
-    "Pacific/Auckland": "Wellington",
-    "Australia/Sydney": "Sydney and Melbourne",
-    "America/Chicago": "Houston",
-    "America/Denver": "Idaho",
-    "Europe/London": "London and Manchester",
-    "Asia/Bangkok": "Bangkok"
+    "Pacific/Auckland": "Wellington (NZ)",
+    "Australia/Sydney": "Sydney and Melbourne (AU)",
+    "America/Chicago": "Houston (US)",
+    "America/Denver": "Idaho (US)",
+    "Europe/London": "London and Mancheste (UK)",
+    "Asia/Bangkok": "Bangkok (TH)"
   },
 
   "team": [
@@ -42,6 +42,6 @@
     { "name": "AU External", "tz": "Australia/Sydney", "type": "org" },
     { "name": "Houston External", "tz": "America/Chicago", "type": "org" },
     { "name": "UK External", "tz": "Europe/London", "type": "org" },
-    { "name": "Thailan External", "tz": "Asia/Bangkok", "type": "org" }
+    { "name": "Thailand External", "tz": "Asia/Bangkok", "type": "org" }
   ]
 }
