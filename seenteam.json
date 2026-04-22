@@ -41,6 +41,7 @@
     { "name": "NZ External", "tz": "Pacific/Auckland", "type": "org" },
     { "name": "AU External", "tz": "Australia/Sydney", "type": "org" },
     { "name": "Houston External", "tz": "America/Chicago", "type": "org" },
+    { "name": "Idaho External", "tz": "America/Denver", "type": "org" },
     { "name": "UK External", "tz": "Europe/London", "type": "org" },
     { "name": "Thailand External", "tz": "Asia/Bangkok", "type": "org" }
   ]
